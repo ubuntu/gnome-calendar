@@ -1,0 +1,89 @@
+name: gnome-calendar
+adopt-info: gnome-calendar
+base: core22
+summary: Simple calendar application for Gnome
+description: |
+  GNOME Calendar is a simple and beautiful calendar application for GNOME. We give
+  a lot of attention to details, and as such, design is an essential and ongoing
+  effort.
+
+grade: stable
+confinement: strict # use 'strict' once you have the right plugs and slots
+
+layout:
+  /usr/lib/$SNAPCRAFT_ARCH_TRIPLET/libgweather-4:
+    symlink: $SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/libgweather-4
+  /usr/lib/evolution-data-server:
+    symlink: $SNAP/usr/lib/evolution-data-server
+  /usr/bin/gnome-control-center:
+    symlink: $SNAP/usr/bin/gnome-control-center
+
+slots:
+  # for GtkApplication registration
+  gnome-calendar:
+    interface: dbus
+    bus: session
+    name: org.gnome.Calendar
+
+apps:
+  gnome-calendar:
+    extensions: [gnome]
+    command: usr/bin/gnome-calendar
+    plugs:
+      - mount-observe
+      - calendar-service
+
+parts:
+  gnome-calendar:
+    source: https://gitlab.gnome.org/GNOME/gnome-calendar.git
+    source-type: git
+    source-tag: '42.2'
+    plugin: meson
+    meson-parameters:
+      - --prefix=/usr
+      - --buildtype=release
+    override-pull: |
+      craftctl default
+      craftctl set version=$(git describe --tags --abbrev=10)
+    override-build: |
+      craftctl default
+      mkdir -p $CRAFT_PART_INSTALL/meta/gui/
+      cp $CRAFT_PART_SRC/data/icons/hicolor/scalable/apps/org.gnome.Calendar.svg $CRAFT_PART_INSTALL/meta/gui/
+      cp ../install/usr/share/applications/org.gnome.Calendar.desktop $CRAFT_PART_INSTALL/meta/gui/
+      sed -i -e 's|=org.gnome.Calendar$|=${SNAP}/meta/gui/org.gnome.Calendar.svg|g' $CRAFT_PART_INSTALL/meta/gui/org.gnome.Calendar.desktop
+      cp $CRAFT_PART_INSTALL/meta/gui/org.gnome.Calendar.desktop $CRAFT_PART_INSTALL/meta/gui/gnome-calendar.desktop
+    build-packages:
+      - libc6-dev
+      - libical-dev
+      - libecal2.0-dev
+      - libgweather-4-dev
+      - libgeoclue-2-dev
+      - libedataserverui1.2-dev
+    stage-packages:
+      - libical3
+      - libedataserver-1.2-26
+      - libecal-2.0-1
+      - libgweather-4-0
+      - libgeoclue-2-0
+      - libedataserverui-1.2-3
+      - evolution-data-server
+
+  cleanup:
+    after: [ gnome-calendar ]
+    plugin: nil
+    build-snaps: [core22, gtk-common-themes, gnome-42-2204]
+    override-prime: |
+      set -eux
+      for snap in "core22" "gtk-common-themes" "gnome-42-2204"; do
+        cd "/snap/$snap/current" && find . -type f,l -name *.so.* -exec rm -f "$CRAFT_PRIME/{}" \;
+      done
+      for snap in "core22" "gnome-42-2204"; do
+        cd "/snap/$snap/current/usr/lib"
+        for filename in [ *.so* ]; do
+          rm -f "$CRAFT_PRIME/usr/lib/$CRAFT_ARCH_TRIPLET/$filename"
+        done
+        cd "/snap/$snap/current/usr/lib/$CRAFT_ARCH_TRIPLET"
+        for filename in [ *.so* ]; do
+          rm -f "$CRAFT_PRIME/usr/lib/$filename"
+        done
+      done
