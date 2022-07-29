@@ -39,6 +39,7 @@ parts:
     source-type: git
     source-tag: '42.2'
     plugin: meson
+    parse-info: [usr/share/metainfo/org.gnome.Calendar.appdata.xml]
     meson-parameters:
       - --prefix=/usr
       - --buildtype=release
