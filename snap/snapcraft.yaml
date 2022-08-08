@@ -54,17 +54,14 @@ parts:
       sed -i -e 's|=org.gnome.Calendar$|=${SNAP}/meta/gui/org.gnome.Calendar.svg|g' $CRAFT_PART_INSTALL/meta/gui/org.gnome.Calendar.desktop
       cp $CRAFT_PART_INSTALL/meta/gui/org.gnome.Calendar.desktop $CRAFT_PART_INSTALL/meta/gui/gnome-calendar.desktop
     build-packages:
-      - libc6-dev
       - libical-dev
       - libecal2.0-dev
-      - libgweather-4-dev
       - libgeoclue-2-dev
       - libedataserverui1.2-dev
     stage-packages:
       - libical3
       - libedataserver-1.2-26
       - libecal-2.0-1
-      - libgweather-4-0
       - libgeoclue-2-0
       - libedataserverui-1.2-3
       - evolution-data-server
