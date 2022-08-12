@@ -52,7 +52,6 @@ parts:
       cp $CRAFT_PART_SRC/data/icons/hicolor/scalable/apps/org.gnome.Calendar.svg $CRAFT_PART_INSTALL/meta/gui/
       cp ../install/usr/share/applications/org.gnome.Calendar.desktop $CRAFT_PART_INSTALL/meta/gui/
       sed -i -e 's|=org.gnome.Calendar$|=${SNAP}/meta/gui/org.gnome.Calendar.svg|g' $CRAFT_PART_INSTALL/meta/gui/org.gnome.Calendar.desktop
-      cp $CRAFT_PART_INSTALL/meta/gui/org.gnome.Calendar.desktop $CRAFT_PART_INSTALL/meta/gui/gnome-calendar.desktop
     build-packages:
       - libical-dev
       - libecal2.0-dev
