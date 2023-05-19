@@ -32,12 +32,15 @@ apps:
     plugs:
       - mount-observe
       - calendar-service
+      - accounts-service
+      - contacts-service
 
 parts:
   gnome-calendar:
     source: https://gitlab.gnome.org/GNOME/gnome-calendar.git
     source-type: git
     source-tag: '42.2'
+    source-depth: 1
     plugin: meson
     parse-info: [usr/share/metainfo/org.gnome.Calendar.appdata.xml]
     meson-parameters:
