@@ -29,6 +29,8 @@ apps:
   gnome-calendar:
     extensions: [gnome]
     command: usr/bin/gnome-calendar
+    environment:
+      LD_LIBRARY_PATH: $SNAP/usr/lib:$SNAP/usr/lib/evolution-data-server:$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET:${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
     plugs:
       - mount-observe
       - calendar-service
@@ -36,10 +38,103 @@ apps:
       - contacts-service
 
 parts:
+  # required because we need a version with libsoup3
+  geocode:
+    source: https://gitlab.gnome.org/GNOME/geocode-glib.git
+    source-tag: '3.26.4'
+    source-depth: 1
+    plugin: meson
+    meson-parameters:
+      - --prefix=/usr
+      - -Doptimization=3
+      - -Ddebug=true
+      - -Denable-installed-tests=false
+      - -Denable-introspection=true
+      - -Denable-gtk-doc=false
+      - -Dsoup2=false
+    build-packages:
+      - libnghttp2-dev
+
+  # required because we need a version with libsoup3
+  libgweather:
+    after: [ geocode ]
+    source: https://gitlab.gnome.org/GNOME/libgweather.git
+    source-tag: '4.2.0'
+    source-depth: 1
+    plugin: meson
+    meson-parameters:
+      - --prefix=/usr
+      - -Doptimization=3
+      - -Ddebug=true
+      - -Dintrospection=true
+      - -Dgtk_doc=false
+      - -Dtests=false
+      - -Dsoup2=false
+    override-pull: |
+      craftctl default
+      sed -i 's#CRAFT_ENV_REPLACE#/usr/lib:/usr/lib/$CRAFT_ARCH_TRIPLET#' $CRAFT_PART_SRC/data/meson.build
+    build-packages:
+      - gir1.2-glib-2.0
+
+  evolution-data-server:
+    after: [ libical, geoclue, libgweather ]
+    source: https://gitlab.gnome.org/GNOME/evolution-data-server.git
+    source-tag: '3.48.2'
+    source-depth: 1
+    plugin: cmake
+    override-build: |
+      export DESTDIR=$CRAFT_PART_INSTALL
+      cmake $CRAFT_PART_SRC -DCMAKE_INSTALL_PREFIX=/usr -DENABLE_CANBERRA=OFF -DENABLE_GOA=OFF -DENABLE_DOT_LOCKING=OFF -DENABLE_FILE_LOCKING=fcntl -DENABLE_GTK=OFF -DENABLE_GTK4=ON -DENABLE_GOOGLE=OFF -DENABLE_VALA_BINDINGS=OFF -DENABLE_WEATHER=OFF -DWITH_OPENLDAP=OFF -DWITH_LIBDB=OFF -DENABLE_INTROSPECTION=OFF -DENABLE_INSTALLED_TESTS=OFF -DENABLE_GTK_DOC=OFF -DENABLE_EXAMPLES=OFF -DENABLE_OAUTH2_WEBKITGTK4=OFF
+      # Move usr/include after usr/include/nss to avoid interferences with usr/include/nss.h
+      sed -i "s#-I/snap/gnome-42-2204-sdk/current/usr/include # #g" src/camel/CMakeFiles/camel.dir/flags.make
+      sed -i "s#-I/usr/include/nspr#-I/usr/include/nspr -I/snap/gnome-42-2204-sdk/current/usr/include#g" src/camel/CMakeFiles/camel.dir/flags.make
+      sed -i "s#-I/snap/gnome-42-2204-sdk/current/usr/include # #g" src/libedataserverui/CMakeFiles/edataserverui4.dir/flags.make
+      sed -i "s#-I/usr/include/nspr#-I/usr/include/nspr -I/snap/gnome-42-2204-sdk/current/usr/include#g" src/libedataserverui/CMakeFiles/edataserverui4.dir/flags.make
+      make -j8 DESTDIR=$CRAFT_PART_INSTALL
+      make install
+    build-packages:
+      - libkrb5-dev
+      - gperf
+      - libnss3-dev
+      - zlib1g-dev
+      - libsqlite3-dev
+      - libicu-dev
+    stage-packages:
+      - zlib1g
+
+  libical:
+    source: https://github.com/libical/libical.git
+    source-tag: 'v3.0.16'
+    source-depth: 1
+    plugin: cmake
+    cmake-parameters:
+      - -DCMAKE_INSTALL_PREFIX=/usr
+      - -Doptimization=3
+      - -Ddebug=true
+      - -DENABLE_GTK_DOC=OFF
+      - -DBUILD_SHARED_LIBS=On
+      - -DICAL_BUILD_DOCS=False
+      - -DWITH_CXX_BINDINGS=False
+
+  geoclue:
+    source: https://gitlab.freedesktop.org/geoclue/geoclue.git
+    source-tag: '2.7.0'
+    after: [ geocode ]
+    plugin: meson
+    meson-parameters:
+      - --prefix=/usr
+      - -Doptimization=3
+      - -Ddebug=true
+      - -Denable-backend=false
+      - -Dlibgeoclue=true
+      - -Dintrospection=true
+      - -Dgtk-doc=false
+
   gnome-calendar:
+    after: [ evolution-data-server, libical, geoclue, geocode ]
     source: https://gitlab.gnome.org/GNOME/gnome-calendar.git
     source-type: git
-    source-tag: '42.2'
+    source-tag: '44.1'
     source-depth: 1
     plugin: meson
     parse-info: [usr/share/metainfo/org.gnome.Calendar.appdata.xml]
@@ -49,35 +144,28 @@ parts:
     override-pull: |
       craftctl default
       craftctl set version=$(git describe --tags --abbrev=10)
+    build-environment:
+      - C_INCLUDE_PATH: ${C_INCLUDE_PATH:+$C_INCLUDE_PATH:}$CRAFT_STAGE/usr/include/evolution-data-server
+      - LD_LIBRARY_PATH: $CRAFT_STAGE/usr/lib:$CRAFT_STAGE/usr/lib/evolution-data-server:$LD_LIBRARY_PATH
+      - PKG_CONFIG_PATH: $CRAFT_STAGE/usr/lib/pkgconfig:$PKG_CONFIG_PATH
     override-build: |
       craftctl default
       mkdir -p $CRAFT_PART_INSTALL/meta/gui/
       cp $CRAFT_PART_SRC/data/icons/hicolor/scalable/apps/org.gnome.Calendar.svg $CRAFT_PART_INSTALL/meta/gui/
       cp ../install/usr/share/applications/org.gnome.Calendar.desktop $CRAFT_PART_INSTALL/meta/gui/
       sed -i -e 's|=org.gnome.Calendar$|=${SNAP}/meta/gui/org.gnome.Calendar.svg|g' $CRAFT_PART_INSTALL/meta/gui/org.gnome.Calendar.desktop
-    build-packages:
-      - libical-dev
-      - libecal2.0-dev
-      - libgeoclue-2-dev
-      - libedataserverui1.2-dev
-    stage-packages:
-      - libical3
-      - libedataserver-1.2-26
-      - libecal-2.0-1
-      - libgeoclue-2-0
-      - libedataserverui-1.2-3
-      - evolution-data-server
+
 
   cleanup:
     after: [ gnome-calendar ]
     plugin: nil
-    build-snaps: [core22, gtk-common-themes, gnome-42-2204]
+    build-snaps: [core22, gtk-common-themes]
     override-prime: |
       set -eux
-      for snap in "core22" "gtk-common-themes" "gnome-42-2204"; do
+      for snap in "core22" "gtk-common-themes"; do
         cd "/snap/$snap/current" && find . -type f,l -name *.so.* -exec rm -f "$CRAFT_PRIME/{}" \;
       done
-      for snap in "core22" "gnome-42-2204"; do
+      for snap in "core22"; do
         cd "/snap/$snap/current/usr/lib"
         for filename in [ *.so* ]; do
           rm -f "$CRAFT_PRIME/usr/lib/$CRAFT_ARCH_TRIPLET/$filename"
