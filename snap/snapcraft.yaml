@@ -159,7 +159,7 @@ parts:
     after: [ evolution-data-server, libical, geoclue, geocode ]
     source: https://gitlab.gnome.org/GNOME/gnome-calendar.git
     source-type: git
-    source-tag: '45.1'
+    source-tag: '46.0'
     source-depth: 1
     plugin: meson
     parse-info: [usr/share/metainfo/org.gnome.Calendar.appdata.xml]
