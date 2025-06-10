@@ -1,6 +1,6 @@
 name: gnome-calendar
 adopt-info: gnome-calendar
-base: core22
+base: core24
 summary: Simple calendar application for Gnome
 description: |
   GNOME Calendar is a simple and beautiful calendar application for GNOME. We give
@@ -11,8 +11,6 @@ grade: stable
 confinement: strict # use 'strict' once you have the right plugs and slots
 
 layout:
-  /usr/lib/$SNAPCRAFT_ARCH_TRIPLET/libgweather-4:
-    symlink: $SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/libgweather-4
   /usr/lib/evolution-data-server:
     symlink: $SNAP/usr/lib/evolution-data-server
   /usr/bin/gnome-control-center:
@@ -25,12 +23,17 @@ slots:
     bus: session
     name: org.gnome.Calendar
 
+plugs:
+  desktop:
+    desktop-file-ids:
+      - org.gnome.Calendar
+
 apps:
   gnome-calendar:
     extensions: [gnome]
     command: usr/bin/gnome-calendar
     environment:
-      LD_LIBRARY_PATH: $SNAP/usr/lib:$SNAP/usr/lib/evolution-data-server:$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET:${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+      LD_LIBRARY_PATH: $SNAP/usr/lib:$SNAP/usr/lib/evolution-data-server:$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR:${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
     plugs:
       - mount-observe
       - calendar-service
@@ -38,44 +41,6 @@ apps:
       - contacts-service
 
 parts:
-  # required because we need a version with libsoup3
-  geocode:
-    source: https://gitlab.gnome.org/GNOME/geocode-glib.git
-    source-tag: '3.26.4'
-    source-depth: 1
-    plugin: meson
-    meson-parameters:
-      - --prefix=/usr
-      - -Doptimization=3
-      - -Ddebug=true
-      - -Denable-installed-tests=false
-      - -Denable-introspection=true
-      - -Denable-gtk-doc=false
-      - -Dsoup2=false
-    build-packages:
-      - libnghttp2-dev
-
-  # required because we need a version with libsoup3
-  libgweather:
-    after: [ geocode ]
-    source: https://gitlab.gnome.org/GNOME/libgweather.git
-    source-tag: '4.4.4'
-    source-depth: 1
-    plugin: meson
-    meson-parameters:
-      - --prefix=/usr
-      - -Doptimization=3
-      - -Ddebug=true
-      - -Dintrospection=true
-      - -Dgtk_doc=false
-      - -Dtests=false
-      - -Dsoup2=false
-    override-pull: |
-      craftctl default
-      sed -i 's#CRAFT_ENV_REPLACE#/usr/lib:/usr/lib/$CRAFT_ARCH_TRIPLET#' $CRAFT_PART_SRC/data/meson.build
-    build-packages:
-      - gir1.2-glib-2.0
-
   libical:
     source: https://github.com/libical/libical.git
     source-tag: 'v3.0.20'
@@ -94,7 +59,7 @@ parts:
       - -DICAL_BUILD_DOCS=false
 
   evolution-data-server:
-    after: [ libical, geoclue, libgweather ]
+    after: [ libical, geoclue ]
     source: https://gitlab.gnome.org/GNOME/evolution-data-server.git
     source-tag: '3.56.2'
     source-depth: 1
@@ -119,7 +84,7 @@ parts:
       - -DENABLE_EXAMPLES=OFF
       - -DENABLE_OAUTH2_WEBKITGTK4=OFF
     build-environment:
-      - PKG_CONFIG_PATH: $CRAFT_STAGE/usr/lib/pkgconfig:$CRAFT_STAGE/usr/lib/$CRAFT_ARCH_TRIPLET/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}
+      - PKG_CONFIG_PATH: $CRAFT_STAGE/usr/lib/pkgconfig:$CRAFT_STAGE/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}
     override-pull: |
       craftctl default
       sed -i "s|#include \"nss.h\"|#include \"nss/nss.h\"|g" src/camel/camel.c
@@ -144,7 +109,6 @@ parts:
     source: https://gitlab.freedesktop.org/geoclue/geoclue.git
     source-tag: '2.7.2'
     source-depth: 1
-    after: [ geocode ]
     plugin: meson
     meson-parameters:
       - --prefix=/usr
@@ -156,7 +120,7 @@ parts:
       - -Dgtk-doc=false
 
   gnome-calendar:
-    after: [ evolution-data-server, libical, geoclue, geocode ]
+    after: [ evolution-data-server, libical, geoclue ]
     source: https://gitlab.gnome.org/GNOME/gnome-calendar.git
     source-type: git
     source-tag: '48.1'
@@ -177,25 +141,25 @@ parts:
       craftctl default
       mkdir -p $CRAFT_PART_INSTALL/meta/gui/
       cp $CRAFT_PART_SRC/data/icons/hicolor/scalable/apps/org.gnome.Calendar.svg $CRAFT_PART_INSTALL/meta/gui/
-      cp ../install/usr/share/applications/org.gnome.Calendar.desktop $CRAFT_PART_INSTALL/meta/gui/
+      cp $CRAFT_PART_INSTALL/usr/share/applications/org.gnome.Calendar.desktop $CRAFT_PART_INSTALL/meta/gui/
       sed -i -e 's|=org.gnome.Calendar$|=${SNAP}/meta/gui/org.gnome.Calendar.svg|g' $CRAFT_PART_INSTALL/meta/gui/org.gnome.Calendar.desktop
 
 
   cleanup:
     after: [ gnome-calendar ]
     plugin: nil
-    build-snaps: [core22, gtk-common-themes]
+    build-snaps: [core24, gtk-common-themes, gnome-46-2404]
     override-prime: |
       set -eux
-      for snap in "core22" "gtk-common-themes"; do
+      for snap in "core24" "gtk-common-themes" "gnome-46-2404"; do
         cd "/snap/$snap/current" && find . -type f,l -name *.so.* -exec rm -f "$CRAFT_PRIME/{}" \;
       done
-      for snap in "core22"; do
+      for snap in "core24"; do
         cd "/snap/$snap/current/usr/lib"
         for filename in [ *.so* ]; do
-          rm -f "$CRAFT_PRIME/usr/lib/$CRAFT_ARCH_TRIPLET/$filename"
+          rm -f "$CRAFT_PRIME/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/$filename"
         done
-        cd "/snap/$snap/current/usr/lib/$CRAFT_ARCH_TRIPLET"
+        cd "/snap/$snap/current/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR"
         for filename in [ *.so* ]; do
           rm -f "$CRAFT_PRIME/usr/lib/$filename"
         done
